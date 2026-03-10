@@ -21,7 +21,7 @@ import IntuneManager from '@managers/intune_manager';
 import NetworkManager from '@managers/network_manager';
 import SecurityManager from '@managers/security_manager';
 import Background from '@screens/background';
-import {dismissModal, goToScreen, loginAnimationOptions, popTopScreen} from '@screens/navigation';
+import {dismissModal, goToScreen, loginAnimationOptions} from '@screens/navigation';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 import {typography} from '@utils/typography';
 
@@ -156,14 +156,20 @@ const LoginOptions = ({
         dismissModal({componentId});
     };
 
-    const pop = useCallback(() => {
-        popTopScreen(componentId);
-    }, [componentId]);
-
     const onLayout = useCallback((e: LayoutChangeEvent) => {
         const {height} = e.nativeEvent.layout;
         setContentFillScreen(dimensions.height < height + defaultHeaderHeight);
     }, [dimensions.height, defaultHeaderHeight]);
+
+    useEffect(() => {
+        Navigation.mergeOptions(componentId, {
+            topBar: {
+                backButton: {
+                    visible: false,
+                },
+            },
+        });
+    }, [componentId]);
 
     useEffect(() => {
         const navigationEvents = Navigation.events().registerNavigationButtonPressedListener(({buttonId}) => {
@@ -179,7 +185,7 @@ const LoginOptions = ({
     const animatedStyles = useScreenTransitionAnimation(Screens.LOGIN);
 
     useNavButtonPressed(closeButtonId || '', componentId, dismiss, []);
-    useAndroidHardwareBackHandler(componentId, pop);
+    useAndroidHardwareBackHandler(componentId, useCallback(() => { /* back disabled on login */ }, []));
 
     let additionalContainerStyle;
     if (!contentFillScreen && (numberSSOs < 3 || !hasLoginForm || (isTablet && dimensions.height > dimensions.width))) {

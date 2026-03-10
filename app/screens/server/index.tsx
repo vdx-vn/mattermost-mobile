@@ -46,6 +46,9 @@ interface ServerProps extends LaunchProps {
 
 let cancelPing: undefined | (() => void);
 
+const DEFAULT_SERVER_URL = 'https://wpc.garco10.com.vn';
+const DEFAULT_SERVER_NAME = 'May10';
+
 const defaultServerUrlMessage = defineMessage({
     id: 'mobile.server_url.empty',
     defaultMessage: 'Please enter a valid server URL',
@@ -88,10 +91,10 @@ const Server = ({
     const managedConfig = useManagedConfig<ManagedConfig>();
     const keyboardAwareRef = useRef<KeyboardAwareScrollView>(null);
     const [connecting, setConnecting] = useState(false);
-    const [displayName, setDisplayName] = useState<string>('');
+    const [displayName, setDisplayName] = useState<string>(DEFAULT_SERVER_NAME);
     const [buttonDisabled, setButtonDisabled] = useState(true);
     const [preauthSecret, setPreauthSecret] = useState<string>('');
-    const [url, setUrl] = useState<string>('');
+    const [url, setUrl] = useState<string>(DEFAULT_SERVER_URL);
     const [displayNameError, setDisplayNameError] = useState<string | undefined>();
     const [urlError, setUrlError] = useState<string | undefined>();
     const [preauthSecretError, setPreauthSecretError] = useState<string | undefined>();
@@ -100,6 +103,7 @@ const Server = ({
     const {formatMessage} = intl;
     const disableServerUrl = Boolean(managedConfig?.allowOtherServers === 'false' && managedConfig?.serverUrl);
     const additionalServer = launchType === Launch.AddServerFromDeepLink || launchType === Launch.AddServer;
+    const [isAutoConnecting, setIsAutoConnecting] = useState(!additionalServer);
 
     const dismiss = () => {
         NetworkManager.invalidateClient(url);
@@ -109,9 +113,9 @@ const Server = ({
     const animatedStyles = useScreenTransitionAnimation(componentId, animated);
 
     useEffect(() => {
-        let serverName: string | undefined = defaultDisplayName || managedConfig?.serverName || LocalConfig.DefaultServerName;
-        let serverUrl: string | undefined = defaultServerUrl || managedConfig?.serverUrl || LocalConfig.DefaultServerUrl;
-        let autoconnect = managedConfig?.allowOtherServers === 'false' || LocalConfig.AutoSelectServerUrl;
+        let serverName: string | undefined = defaultDisplayName || managedConfig?.serverName || LocalConfig.DefaultServerName || DEFAULT_SERVER_NAME;
+        let serverUrl: string | undefined = defaultServerUrl || managedConfig?.serverUrl || LocalConfig.DefaultServerUrl || DEFAULT_SERVER_URL;
+        let autoconnect = managedConfig?.allowOtherServers === 'false' || LocalConfig.AutoSelectServerUrl || serverUrl === DEFAULT_SERVER_URL;
 
         if (launchType === Launch.DeepLink || launchType === Launch.AddServerFromDeepLink) {
             const deepLinkServerUrl = (extra as DeepLinkWithData).data?.serverUrl;
@@ -143,7 +147,10 @@ const Server = ({
 
         if (serverUrl && serverName && autoconnect) {
             // If no other servers are allowed or the local config for AutoSelectServerUrl is set, attempt to connect
-            handleConnect(managedConfig?.serverUrl || LocalConfig.DefaultServerUrl);
+            setIsAutoConnecting(true);
+            handleConnect(managedConfig?.serverUrl || LocalConfig.DefaultServerUrl || serverUrl);
+        } else {
+            setIsAutoConnecting(false);
         }
 
         // We only want to handle connect when a smaller set of variables change
@@ -326,6 +333,7 @@ const Server = ({
                 setUrlError(getErrorMessage(headRequest.error, intl));
                 setButtonDisabled(true);
                 setConnecting(false);
+                setIsAutoConnecting(false);
             }
             return;
         }
@@ -352,6 +360,7 @@ const Server = ({
             }
             setButtonDisabled(true);
             setConnecting(false);
+            setIsAutoConnecting(false);
             return;
         }
 
@@ -361,6 +370,7 @@ const Server = ({
             setButtonDisabled(true);
             setUrlError(getErrorMessage(data.error, intl));
             setConnecting(false);
+            setIsAutoConnecting(false);
             return;
         }
 
@@ -370,6 +380,7 @@ const Server = ({
                 defaultMessage: 'A DiagnosticId value is missing for this server. Contact your system admin to review this value and restart the server.',
             }));
             setConnecting(false);
+            setIsAutoConnecting(false);
             return;
         }
 
@@ -377,6 +388,7 @@ const Server = ({
             const isJailbroken = await SecurityManager.isDeviceJailbroken(headRequest.url, data.config.SiteName);
             if (isJailbroken) {
                 setConnecting(false);
+                setIsAutoConnecting(false);
                 return;
             }
         }
@@ -385,6 +397,7 @@ const Server = ({
             const biometricsResult = await SecurityManager.authenticateWithBiometrics(headRequest.url, data.config.SiteName);
             if (!biometricsResult) {
                 setConnecting(false);
+                setIsAutoConnecting(false);
                 return;
             }
         }
@@ -399,11 +412,24 @@ const Server = ({
                 id: 'mobile.server_identifier.exists',
                 defaultMessage: 'You are already connected to this server.',
             }));
+            setIsAutoConnecting(false);
             return;
         }
 
         displayLogin(headRequest.url, data.config!, data.license!);
     };
+
+    if (isAutoConnecting) {
+        return (
+            <View
+                style={styles.flex}
+                testID='server.screen'
+                nativeID={SecurityManager.getShieldScreenId(componentId, false, true)}
+            >
+                <Background theme={theme}/>
+            </View>
+        );
+    }
 
     return (
         <View
